@@ -1,0 +1,1 @@
+# kcgt-market-analyzer
