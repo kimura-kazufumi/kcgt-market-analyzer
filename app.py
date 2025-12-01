@@ -49,11 +49,12 @@ def calculate_kcgt_metrics(price_series, window=20):
     # 4. 表示用にスケーリング
     return roughness * 1000
 
-# --- 関数定義: データ取得 (キャッシュ付き) ---
-@st.cache_data(ttl=3600) # 1時間キャッシュ
-def get_data(ticker, start_date, end_date):
+# --- 関数定義: データ取得 ---
+@st.cache_data(ttl=60) # リアルタイム性を重視してキャッシュ時間を60秒に短縮
+def get_data(ticker, interval, period):
     try:
-        data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+        # period引数を使って取得（start/endよりも柔軟）
+        data = yf.download(ticker, interval=interval, period=period, progress=False)
         return data
     except Exception as e:
         return None
@@ -71,16 +72,24 @@ with col2:
 # 免責事項
 st.info("⚠️ **免責事項:** 本ツールは物理幾何学モデルの実験的応用です。投資助言ではありません。相場の「幾何学的な無理（歪み）」を可視化するものであり、将来の価格を保証するものではありません。")
 
-# サイドバー: 設定
-st.sidebar.header("⚙️ 設定 / Settings")
-ticker_input = st.sidebar.text_input("銘柄コード (Ticker Symbol)", value="BTC-USD", help="例: ^GSPC (S&P500), ^N225 (日経平均), BTC-USD, TSLA")
+# --- サイドバー設定 ---
+ticker_input = st.sidebar.text_input("銘柄コード", value="BTC-USD")
 
-# 期間設定
-today = datetime.today()
-two_years_ago = today - timedelta(days=730)
-start_date = st.sidebar.date_input("開始日", value=two_years_ago)
-end_date = st.sidebar.date_input("終了日", value=today)
+# 時間足の選択 (New!)
+interval = st.sidebar.selectbox(
+    "時間足 (Interval)",
+    options=["1d", "1h", "15m", "5m", "1m"],
+    index=0,
+    help="1m, 5m 等は直近のデータしか取得できない場合があります。"
+)
 
+# 期間設定（分足の場合は期間を短く自動調整するロジック）
+if interval in ["1m", "5m", "15m", "1h"]:
+    period = "7d" # 分足は最大7日〜60日程度しか取れない制限があるため
+    st.sidebar.info(f"※ 短期足 ({interval}) 選択中は、直近 {period} のデータを解析します。")
+else:
+    period = "2y" # 日足なら2年分
+    # 日付指定は日足の時のみ有効にするなどの制御も可能ですが、今回は簡易的にperiod指定を使います
 # パラメータ調整
 st.sidebar.markdown("---")
 st.sidebar.subheader("📐 解析パラメータ")
@@ -90,7 +99,8 @@ sensitivity = st.sidebar.slider("検知感度 (σ)", 1.0, 4.0, 2.0, help="閾値
 # --- 解析実行 ---
 if ticker_input:
     with st.spinner(f'{ticker_input} の構界データを取得中...'):
-        df = get_data(ticker_input, start_date, end_date)
+        # 引数を変更
+        df = get_data(ticker_input, interval, period)
 
     if df is not None and not df.empty:
         # データ準備
