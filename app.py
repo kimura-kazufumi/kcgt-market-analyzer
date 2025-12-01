@@ -117,7 +117,7 @@ if ticker_input:
         danger_mask = stress_index > threshold
         
         # 最新の状態判定
-        latest_stress = stress_index[-1]
+        latest_stress = stress_index.iloc[-1]
         is_danger = latest_stress > threshold
         
         # --- 結果表示エリア ---
